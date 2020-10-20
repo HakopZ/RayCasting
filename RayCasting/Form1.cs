@@ -15,14 +15,16 @@ using Point = System.Drawing.Point;
 
 namespace RayCasting
 {
+
+
     public partial class Form1 : Form
     {
-        const double Rotations = 0.05;
+        const double Rotations = 0.01;
         Random rand;
         Graphics gfx;
         Bitmap canvas;
-        List<Line> Hitboxlines;
-        List<Line> CreatedLines;
+        List<Line2D> Hitboxlines;
+        List<Line2D> CreatedLines;
         public Form1()
         {
 
@@ -32,29 +34,30 @@ namespace RayCasting
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
+
             canvas = new Bitmap(pictureBox1.Width, pictureBox1.Height);
             gfx = Graphics.FromImage(canvas);
 
-            List<Line> temp = new List<Line>()
+            List<Line2D> temp = new List<Line2D>()
             {
-                   new Line(){X1 = 0, Y1 = 0, X2 = 0, Y2 = pictureBox1.Height},    // left wall
-                new Line(){X1 = pictureBox1.Width, Y1 = 0, X2 = pictureBox1.Width, Y2 = pictureBox1.Height}, //right wall
-                new Line(){X1 = 0, Y1 = 0, X2 = pictureBox1.Width, Y2 = 0},     //top wall
-                new Line(){X1 = 0, Y1 = pictureBox1.Height, X2 = pictureBox1.Width, Y2 = pictureBox1.Height} //bottom wall
+                   new Line2D(){X1 = 0, Y1 = 0, X2 = 0, Y2 = pictureBox1.Height},    // left wall
+                new Line2D(){X1 = pictureBox1.Width, Y1 = 0, X2 = pictureBox1.Width, Y2 = pictureBox1.Height}, //right wall
+                new Line2D(){X1 = 0, Y1 = 0, X2 = pictureBox1.Width, Y2 = 0},     //top wall
+                new Line2D(){X1 = 0, Y1 = pictureBox1.Height, X2 = pictureBox1.Width, Y2 = pictureBox1.Height} //bottom wall
             };
-            Hitboxlines = new List<Line>();
+            Hitboxlines = new List<Line2D>();
             rand = new Random();
-            CreatedLines = new List<Line>();
-            Line line;
+            CreatedLines = new List<Line2D>();
             for (int i = 0; i < 5; i++)
             {
-                line = new Line();
-                line.X1 = rand.Next(0, pictureBox1.Width);
-                line.Y1 = rand.Next(0, pictureBox1.Height);
+                Line2D line = new Line2D
+                {
+                    X1 = rand.Next(0, pictureBox1.Width),
+                    Y1 = rand.Next(0, pictureBox1.Height),
 
-                line.X2 = rand.Next(0, pictureBox1.Width);
-                line.Y2 = rand.Next(0, pictureBox1.Height);
+                    X2 = rand.Next(0, pictureBox1.Width),
+                    Y2 = rand.Next(0, pictureBox1.Height)
+                };
 
                 Hitboxlines.Add(line);
             }
@@ -64,6 +67,7 @@ namespace RayCasting
 
         private void timer1_Tick(object sender, EventArgs e)
         {
+            gfx.Clear(Color.Black);
             UpdateLines();
 
             Draw();
@@ -71,15 +75,10 @@ namespace RayCasting
 
         private void Draw()
         {
-            gfx.Clear(Color.Black);
 
             foreach (var l in Hitboxlines)
             {
-                gfx.DrawLine(Pens.White, new Point((int)l.X1, (int)l.Y1), new Point((int)l.X2, (int)l.Y2));
-            }
-            foreach (var l in CreatedLines)
-            {
-                gfx.DrawLine(Pens.LightBlue, new Point((int)l.X1, (int)l.Y1), new Point((int)l.X2, (int)l.Y2));
+                gfx.DrawLine(Pens.White, new Point(l.X1, l.Y1), new Point(l.X2, l.Y2));
             }
             pictureBox1.Image = canvas;
         }
@@ -89,61 +88,65 @@ namespace RayCasting
 
             Point MousePosition = pictureBox1.PointToClient(Cursor.Position);
 
-            Console.WriteLine($"{MousePosition.X}, {MousePosition.Y}");
+            //Console.WriteLine($"{MousePosition.X}, {MousePosition.Y}");
             FindIntersection(MousePosition);
 
         }
 
         private void FindIntersection(Point origin)
         {
-            CreatedLines.Clear();
-            for (double an = 0; an <= Math.PI*2; an += Rotations)
+            for (double an = 0; an <= Math.PI * 2; an += Rotations)
             {
                 double X = origin.X + (Math.Cos(an) * 10000);
                 double Y = origin.Y - (Math.Sin(an) * 10000);
-                Line temp = new Line();
-                temp.X1 = origin.X;
-                temp.Y1 = origin.Y;
-                temp.X2 = X;
-                temp.Y2 = Y;
-                List<(Line, double)> Distances = new List<(Line, double)>();
+                Line2D temp = new Line2D
+                {
+                    X1 = origin.X,
+                    Y1 = origin.Y,
+                    X2 = (int)X,
+                    Y2 = (int)Y
+                };
+                Line2D Closest = new Line2D { X1 = 0, X2 = int.MaxValue, Y1 = 0, Y2 = int.MaxValue };
+
                 foreach (var l in Hitboxlines)
                 {
                     if (CheckIntersection(temp, l, out Point endPoint))
                     {
-                        Line line = new Line();
-                        line.X1 = origin.X;
-                        line.Y1 = origin.Y;
+                        Line2D line = new Line2D
+                        {
+                            X1 = origin.X,
+                            Y1 = origin.Y,
 
-                        line.X2 = endPoint.X;
-                        line.Y2 = endPoint.Y;
-                        Distances.Add((line, GetDistance(origin, endPoint)));    
+                            X2 = endPoint.X,
+                            Y2 = endPoint.Y
+                        };
+                        double distance = GetDistance(origin, endPoint);
+                        double closestDistance = GetDistance(new Point((int)Closest.X1, (int)Closest.Y1), new Point((int)Closest.X2, (int)Closest.Y2));
+                        Closest = distance < closestDistance ? line : Closest;
                     }
                 }
-                try
+                if (Closest.X2 != int.MaxValue)
                 {
-                    var first = Distances.OrderBy(x => x.Item2).First();
-                    CreatedLines.Add(first.Item1);
-                }
-                catch
-                {
-
+                    PrintLine(Pens.LightBlue, Closest);
                 }
             }
         }
-
-        private void pictureBox1_Click(object sender, EventArgs e)
+        public void PrintLine(Pen color, Line2D line)
         {
+            gfx.DrawLine(color, new Point(line.X1, line.Y1), new Point(line.X2, line.Y2));
         }
-
-
-
-        public static bool CheckIntersection(Line l1, Line l2, out Point end)
+        public static bool CheckIntersection(Line2D l1, Line2D l2, out Point end)
         {
             end = default;
             double den = ((l1.X1 - l1.X2) * (l2.Y1 - l2.Y2)) - ((l1.Y1 - l1.Y2) * (l2.X1 - l2.X2));
             double t = ((l1.X1 - l2.X1) * (l2.Y1 - l2.Y2)) - ((l1.Y1 - l2.Y1) * (l2.X1 - l2.X2));
             double u = ((l1.X1 - l1.X2) * (l1.Y1 - l2.Y1)) - ((l1.Y1 - l1.Y2) * (l1.X1 - l2.X1));
+
+            if (den == 0)
+            {
+                return false;
+            }
+
             t /= den;
             u /= -den;
 
@@ -158,10 +161,6 @@ namespace RayCasting
         public double GetDistance(Point p1, Point p2)
         {
             return Math.Sqrt(Math.Pow((p2.X - p1.X), 2) + Math.Pow((p2.Y - p1.Y), 2));
-        }
-        private void pictureBox1_MouseClick(object sender, System.Windows.Forms.MouseEventArgs e)
-        {
-
         }
     }
 }
